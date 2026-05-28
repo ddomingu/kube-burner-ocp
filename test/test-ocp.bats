@@ -246,6 +246,22 @@ teardown_file() {
   done
 }
 
+@test "virt-dv-scale-density" {
+  local STORAGE_PARAMETER
+  if [ -n "$KUBE_BURNER_OCP_STORAGE_CLASS" ]; then
+    STORAGE_PARAMETER="--storage-class ${KUBE_BURNER_OCP_STORAGE_CLASS}"
+  fi
+  run_cmd ${KUBE_BURNER_OCP} virt-dv-scale-density ${STORAGE_PARAMETER} --namespaces 2 --vms-per-namespace 2 --data-volume-count 1 --cleanup
+  local jobs=("create-base-dv" "create-vms")
+  for job in "${jobs[@]}"; do
+    check_metric_recorded ./virt-dv-scale-density-results ${job} dvLatency dvReadyLatency
+    check_metric_recorded ./virt-dv-scale-density-results ${job} vmiLatency vmReadyLatency
+    check_quantile_recorded ./virt-dv-scale-density-results ${job} dvLatency Ready
+    check_quantile_recorded ./virt-dv-scale-density-results ${job} vmiLatency VMReady
+  done
+  check_destroyed_ns virt-dv-scale-density
+}
+
 @test "extract and customize crd-scale" {
   run_cmd ${KUBE_BURNER_OCP} crd-scale --extract
   # Disable garbage-collection through using the config file

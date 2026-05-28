@@ -46,6 +46,7 @@ Available Commands:
   virt-capacity-benchmark    Runs capacity-benchmark workload
   virt-clone                 Runs virt-clone workload
   virt-density               Runs virt-density workload
+  virt-dv-scale-density      Runs virt-dv-scale-density workload
   virt-ephemeral-restart     Runs virt-ephemeral-restart workload
   virt-migration             Runs virt-migration workload
   virt-parallel              Runs virt-parallel workload
@@ -582,6 +583,7 @@ The different variants are:
 - [virt-capacity-benchmark](#virt-capacity-benchmark)
 - [virt-parallel](#virt-parallel)
 - [virt-clone](#virt-clone)
+- [virt-dv-scale-density](#virt-dv-scale-density)
 - [virt-ephemeral-restart](#virt-ephemeral-restart)
 - [virt-migration](#virt-migration)
 
@@ -592,9 +594,10 @@ The different variants are:
 The tests listed below verify that the `VirtualMachine` completed their boot using `virtctl ssh`.
 Therefore, `virtctl` must be installed and available in the `PATH`.
 
-- [virt-capacity-benchmark](#virt-capacity-benchmark).
+- [virt-capacity-benchmark](#virt-capacity-benchmark)
 - [virt-parallel](#virt-parallel)
 - [virt-clone](#virt-clone)
+- [virt-dv-scale-density](#virt-dv-scale-density)
 - [virt-ephemeral-restart](#virt-ephemeral-restart)
 - [virt-migration](#virt-migration)
 
@@ -795,6 +798,75 @@ For example, to change the test to wait for a minute between iterations instead 
 
 By default, volumes are created with `ReadWriteMany` access mode as this is the recommended configuration for `VirtualMachines`.
 If not supported, the access mode may be changes by setting `--access-mode`. The supported values are `RO`, `RWO` and `RWX`.
+
+### Virt DV Scale Density
+
+Test high-scale VM density by deploying VMs across multiple namespaces using DataVolume cloning from HTTP sources. This workload validates storage backend capacity and CDI (Containerized Data Importer) performance at scale.
+
+#### Test Sequence
+
+The test creates multiple namespaces, each with its own base image and cloned VMs:
+
+For each namespace:
+
+1. Create a base `DataVolume` by importing from an HTTP source
+2. Create a `VolumeSnapshot` of the base DataVolume (if `--use-snapshot=true`)
+3. Create a `DataSource` pointing to either the snapshot or the DataVolume
+4. Create N `VirtualMachines` cloning from the DataSource
+5. Verify network connectivity via SSH
+6. Wait for configured delay before next namespace
+
+#### Tested StorageClass
+
+By default, the test will search for the `StorageClass` to use:
+
+1. Use the default `StorageClass` for Virtualization annotated with `storageclass.kubevirt.io/is-default-virt-class`
+2. If does not exist, use general default `StorageClass` annotated with `storageclass.kubernetes.io/is-default-class`
+3. If does not exist, fail the test before starting
+
+To use a different one, use `--storage-class` to provide a different name.
+
+If `--use-snapshot` is set to `true` (default), a corresponding `VolumeSnapshotClass` using the same provisioner must exist.
+If `--use-snapshot=false`, the test will clone directly from the PVC without creating snapshots.
+
+#### Test Namespaces
+
+Resources are distributed across multiple namespaces for scale testing.
+
+By default, namespaces follow the pattern `virt-dv-scale-density-0`, `virt-dv-scale-density-1`, etc. Set the base name by passing `--namespace` (or `-n`)
+
+#### Test Size Parameters
+
+Users may control the workload scale by passing the following arguments:
+
+- `--namespaces` - Number of namespaces to create (default: 2)
+- `--vms-per-namespace` - Number of VMs per namespace (default: 10)
+- `--data-volume-count` - Number of additional data volumes per VM (default: 0)
+- `--datavolume-size` - Size of the root DataVolume (default: 10Gi)
+- `--data-volume-size` - Size of each additional data volume (default: 1Gi)
+- `--vm-cpu` - Number of CPU cores per VM (default: 1)
+- `--vm-memory` - Memory allocation per VM (default: 1G)
+
+#### Batching Control
+
+- `--job-iteration-delay` - Delay between namespace iterations (default: 1m)
+
+The test waits for all resources in a namespace to be ready before proceeding to the next namespace.
+
+#### VM Image Source
+
+- `--vm-image-url` - HTTP URL of the source image (default: Fedora 43 cloud image)
+
+#### Volume Access Mode
+
+By default, volumes are created with `ReadWriteMany` access mode. Since this workload does not perform migrations, `ReadWriteOnce` can be used for storage classes that don't support RWX.
+
+The access mode can be changed by setting `--access-mode`. The supported values are `RO`, `RWO` and `RWX`.
+
+#### Cleanup
+
+To cleanup all allocated resources once the test is done set `--cleanup`.
+Alternatively, run the test with only the `--cleanup-only` flag set to cleanup resources from past test runs.
 
 ### Virt Ephemeral Restart
 

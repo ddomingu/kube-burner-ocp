@@ -1,0 +1,130 @@
+{{- $kubeBurnerFQDN := "kube-burner.io" -}}
+{{- $testName := "virt-dv-scale-density" -}}
+{{- $namespaceBaseName := .testNamespaceBaseName -}}
+{{- $testNamespacesLabelKey := (list $kubeBurnerFQDN "/test-name") | join "" -}}
+{{- $testNamespacesLabelValue := $testName -}}
+{{- $sshPublicKeySecretName := "dv-scale-density-ssh" -}}
+{{- $baseDataVolumeName := "dv-source" -}}
+{{- $baseVolumeSnapshotName := "dv-snapshot" -}}
+{{- $baseDataSourceName := "dv-datasource" -}}
+{{- $vmName := "vm" -}}
+
+global:
+  measurements:
+  - name: vmiLatency
+  - name: dataVolumeLatency
+
+metricsEndpoints:
+- indexer:
+    type: local
+    metricsDirectory: ./{{ $testName }}-results
+{{ if .ES_SERVER }}
+- metrics: [{{.METRICS}}]
+  alerts: [{{.ALERTS}}]
+  indexer:
+    esServers: ["{{.ES_SERVER}}"]
+    insecureSkipVerify: true
+    defaultIndex: {{.ES_INDEX}}
+    type: opensearch
+{{ end }}
+
+jobs:
+- name: start-fresh
+  jobType: delete
+  waitForDeletion: true
+  qps: 5
+  burst: 10
+  objects:
+  - kind: Namespace
+    labelSelector:
+      {{ $testNamespacesLabelKey }}: {{ $testNamespacesLabelValue }}
+
+- name: create-base-dv
+  jobType: create
+  jobIterations: {{ .namespaces }}
+  qps: 20
+  burst: 20
+  namespacedIterations: true
+  namespace: {{ $namespaceBaseName }}
+  namespaceLabels:
+    {{ $testNamespacesLabelKey }}: {{ $testNamespacesLabelValue }}
+  verifyObjects: true
+  errorOnVerify: true
+  waitWhenFinished: true
+  maxWaitTimeout: 1h
+  objects:
+
+  - objectTemplate: templates/secret_ssh_public.yml
+    runOnce: true
+    replicas: 1
+    inputVars:
+      name: {{ $sshPublicKeySecretName }}
+      publicKeyPath: {{ .publicKey }}
+
+  - objectTemplate: templates/dv-source.yml
+    replicas: 1
+    inputVars:
+      name: {{ $baseDataVolumeName }}
+      url: {{ .vmImageURL }}
+      storage: {{ .dataVolumeSize }}
+      accessMode: {{ .accessMode }}
+      storageClass: {{ .storageClassName }}
+    waitOptions:
+      customStatusPaths:
+      - key: '.status.phase'
+        value: "Succeeded"
+
+{{ if .useSnapshot }}
+  - objectTemplate: templates/dv-snapshot.yml
+    replicas: 1
+    inputVars:
+      name: {{ $baseVolumeSnapshotName }}
+      dvName: {{ $baseDataVolumeName }}
+      volumeSnapshotClass: {{ .volumeSnapshotClassName }}
+    waitOptions:
+      customStatusPaths:
+      - key: '(.status.readyToUse | tostring)'
+        value: "true"
+{{ end }}
+
+  - objectTemplate: templates/dv-datasource.yml
+    replicas: 1
+    inputVars:
+      name: {{ $baseDataSourceName }}
+      useSnapshot: {{ .useSnapshot }}
+      snapshotName: {{ $baseVolumeSnapshotName }}
+      pvcName: {{ $baseDataVolumeName }}
+
+- name: create-vms
+  jobType: create
+  jobIterations: {{ .namespaces }}
+  qps: 20
+  burst: 20
+  namespacedIterations: true
+  namespace: {{ $namespaceBaseName }}
+  namespaceLabels:
+    {{ $testNamespacesLabelKey }}: {{ $testNamespacesLabelValue }}
+  verifyObjects: true
+  errorOnVerify: true
+  waitWhenFinished: true
+  jobIterationDelay: {{ .jobIterationDelay }}
+  maxWaitTimeout: 6h
+  beforeCleanup: "./check.sh check_vm_running kube-burner.io/job create-vms {{ $namespaceBaseName }}-{{ .Iteration }} {{ .privateKey }} fedora"
+  objects:
+
+  - objectTemplate: templates/vm.yml
+    replicas: {{ .vmsPerNamespace }}
+    inputVars:
+      name: {{ $vmName }}
+      sshPublicKeySecret: {{ $sshPublicKeySecretName }}
+      dataSourceName: {{ $baseDataSourceName }}
+      storageClassName: {{ .storageClassName }}
+      accessMode: {{ .accessMode }}
+      dataVolumeSize: {{ .dataVolumeSize }}
+      dataVolumeSizeAdditional: {{ .dataVolumeSizeAdditional }}
+      cpuCores: {{ .vmCPU }}
+      memory: {{ .vmMemory }}
+      dataVolumeCounters:
+      {{ range .dataVolumeCounters }}
+      - {{ . }}
+      {{ end }}
