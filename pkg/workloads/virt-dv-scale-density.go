@@ -106,21 +106,38 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 			AdditionalVars["publicKey"] = publicKeyPath
 			AdditionalVars["storageClassName"] = storageClassName
 			AdditionalVars["volumeSnapshotClassName"] = volumeSnapshotClassName
-			AdditionalVars["testNamespaceBaseName"] = testNamespaceBaseName
 			AdditionalVars["accessMode"] = accessModeTranslator[volumeAccessMode]
 			AdditionalVars["useSnapshot"] = useSnapshot
-			AdditionalVars["namespaces"] = namespaces
 			AdditionalVars["vmsPerNamespace"] = vmsPerNamespace
 			AdditionalVars["vmImageURL"] = vmImageURL
 			AdditionalVars["dataVolumeSize"] = dataVolumeSize
 			AdditionalVars["dataVolumeSizeAdditional"] = dataVolumeSizeAdditional
 			AdditionalVars["vmCPU"] = vmCPU
 			AdditionalVars["vmMemory"] = vmMemory
-			AdditionalVars["jobIterationDelay"] = jobIterationDelay
 			AdditionalVars["dataVolumeCounters"] = generateLoopCounterSlice(dataVolumeCount, 1)
 
 			setMetrics(cmd, metricsProfiles)
-			rc = RunWorkload(cmd, wh, cmd.Name()+".yml")
+
+			// Loop through namespaces
+			for counter := 0; counter < namespaces; counter++ {
+				currentNamespace := fmt.Sprintf("%s-%d", testNamespaceBaseName, counter)
+				log.Infof("Running namespace %d/%d: %s", counter+1, namespaces, currentNamespace)
+
+				AdditionalVars["counter"] = counter
+				AdditionalVars["testNamespace"] = currentNamespace
+
+				rc = RunWorkload(cmd, wh, cmd.Name()+".yml")
+				if rc != 0 {
+					log.Errorf("virt-dv-scale-density failed in namespace %s", currentNamespace)
+					break
+				}
+
+				// Add delay between namespaces (except after the last one)
+				if counter < namespaces-1 {
+					log.Infof("Waiting %s before processing next namespace", jobIterationDelay)
+					time.Sleep(jobIterationDelay)
+				}
+			}
 
 			if cleanup {
 				log.Infof("Cleaning up all the resources from the current run")
@@ -139,7 +156,7 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 	cmd.Flags().BoolVar(&useSnapshot, "use-snapshot", true, "Clone from snapshot (true) or direct PVC clone (false)")
 	cmd.Flags().IntVar(&namespaces, "namespaces", 2, "Number of namespaces to create")
 	cmd.Flags().IntVar(&vmsPerNamespace, "vms-per-namespace", 10, "Number of VMs to create per namespace")
-	cmd.Flags().IntVar(&dataVolumeCount, "data-volume-count", 0, "Number of additional data volumes per VM")
+	cmd.Flags().IntVar(&dataVolumeCount, "data-volume-count", 0, "Number of additional data volumes per VM (default: 0)")
 	cmd.Flags().StringVar(&vmImageURL, "vm-image-url", "https://dl.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2", "HTTP URL of the source image for base DataVolume")
 	cmd.Flags().StringVar(&dataVolumeSize, "datavolume-size", "10Gi", "Size of the root DataVolume")
 	cmd.Flags().StringVar(&dataVolumeSizeAdditional, "data-volume-size", "1Gi", "Size of each additional data volume")

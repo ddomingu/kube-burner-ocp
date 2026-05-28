@@ -1,6 +1,6 @@
 {{- $kubeBurnerFQDN := "kube-burner.io" -}}
 {{- $testName := "virt-dv-scale-density" -}}
-{{- $namespaceBaseName := .testNamespaceBaseName -}}
+{{- $nsName := .testNamespace -}}
 {{- $testNamespacesLabelKey := (list $kubeBurnerFQDN "/test-name") | join "" -}}
 {{- $testNamespacesLabelValue := $testName -}}
 {{- $sshPublicKeySecretName := "dv-scale-density-ssh" -}}
@@ -8,7 +8,9 @@
 {{- $baseVolumeSnapshotName := "dv-snapshot" -}}
 {{- $baseDataSourceName := "dv-datasource" -}}
 {{- $vmName := "vm" -}}
+{{- $metricsBaseDirectory := $testName -}}
 
+---
 global:
   measurements:
   - name: vmiLatency
@@ -17,7 +19,7 @@ global:
 metricsEndpoints:
 - indexer:
     type: local
-    metricsDirectory: ./{{ $testName }}-results
+    metricsDirectory: "./{{ $metricsBaseDirectory }}/namespace-{{ .counter | toString }}"
 {{ if .ES_SERVER }}
 - metrics: [{{.METRICS}}]
   alerts: [{{.ALERTS}}]
@@ -29,6 +31,7 @@ metricsEndpoints:
 {{ end }}
 
 jobs:
+{{ if eq (.counter | int) 0 }}
 - name: start-fresh
   jobType: delete
   waitForDeletion: true
@@ -38,14 +41,15 @@ jobs:
   - kind: Namespace
     labelSelector:
       {{ $testNamespacesLabelKey }}: {{ $testNamespacesLabelValue }}
+{{ end }}
 
-- name: create-base-dv
+- name: {{ $testName }}-create-base-dv-{{ .counter }}
   jobType: create
-  jobIterations: {{ .namespaces }}
+  jobIterations: 1
   qps: 20
   burst: 20
-  namespacedIterations: true
-  namespace: {{ $namespaceBaseName }}
+  namespacedIterations: false
+  namespace: {{ $nsName }}
   namespaceLabels:
     {{ $testNamespacesLabelKey }}: {{ $testNamespacesLabelValue }}
   verifyObjects: true
@@ -95,21 +99,20 @@ jobs:
       snapshotName: {{ $baseVolumeSnapshotName }}
       pvcName: {{ $baseDataVolumeName }}
 
-- name: create-vms
+- name: {{ $testName }}-create-vms-{{ .counter }}
   jobType: create
-  jobIterations: {{ .namespaces }}
+  jobIterations: 1
   qps: 20
   burst: 20
-  namespacedIterations: true
-  namespace: {{ $namespaceBaseName }}
+  namespacedIterations: false
+  namespace: {{ $nsName }}
   namespaceLabels:
     {{ $testNamespacesLabelKey }}: {{ $testNamespacesLabelValue }}
   verifyObjects: true
   errorOnVerify: true
   waitWhenFinished: true
-  jobIterationDelay: {{ .jobIterationDelay }}
   maxWaitTimeout: 6h
-  beforeCleanup: "./check.sh check_vm_running kube-burner.io/job create-vms {{ $namespaceBaseName }}-{{ .Iteration }} {{ .privateKey }} fedora"
+  beforeCleanup: "./check.sh check_vm_running kube-burner.io/job {{ $testName }}-create-vms-{{ .counter }} {{ $nsName }} {{ .privateKey }} fedora"
   objects:
 
   - objectTemplate: templates/vm.yml
