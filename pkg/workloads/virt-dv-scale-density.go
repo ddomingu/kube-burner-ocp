@@ -42,9 +42,9 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 	var sshKeyPairPath string
 	var useSnapshot bool
 	var namespaces int
-	var vmsPerNamespace int
+	var iterations int
+	var vmsPerIteration int
 	var dataVolumeCount int
-	var vmImageURL string
 	var dataVolumeSize string
 	var dataVolumeSizeAdditional string
 	var vmCPU int
@@ -93,13 +93,13 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 				log.Warnf("Failed to get OCP Virtualization version: %v", err)
 			}
 
+			vmsPerNamespace := iterations * vmsPerIteration
 			totalVMs := namespaces * vmsPerNamespace
 			totalPVCs := totalVMs * (1 + dataVolumeCount) // root + data volumes
 
-			log.Infof("Running virt-dv-scale-density with %d namespaces, %d VMs per namespace", namespaces, vmsPerNamespace)
-			log.Infof("Total VMs: %d, Total PVCs: %d (including %d data volumes per VM)", totalVMs, totalPVCs, dataVolumeCount)
+			log.Infof("Running virt-dv-scale-density with %d namespaces, %d iterations, %d VMs per iteration", namespaces, iterations, vmsPerIteration)
+			log.Infof("Total VMs: %d (%d per namespace), Total PVCs: %d (including %d data volumes per VM)", totalVMs, vmsPerNamespace, totalPVCs, dataVolumeCount)
 			log.Infof("Using Storage Class [%s], VolumeSnapshotClass [%s]", storageClassName, volumeSnapshotClassName)
-			log.Infof("VM Image URL: %s", vmImageURL)
 			log.Infof("Use Snapshot: %t", useSnapshot)
 
 			AdditionalVars["privateKey"] = privateKeyPath
@@ -108,36 +108,21 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 			AdditionalVars["volumeSnapshotClassName"] = volumeSnapshotClassName
 			AdditionalVars["accessMode"] = accessModeTranslator[volumeAccessMode]
 			AdditionalVars["useSnapshot"] = useSnapshot
-			AdditionalVars["vmsPerNamespace"] = vmsPerNamespace
-			AdditionalVars["vmImageURL"] = vmImageURL
+			AdditionalVars["namespaces"] = namespaces
+			AdditionalVars["iterations"] = iterations
+			AdditionalVars["vmsPerIteration"] = vmsPerIteration
 			AdditionalVars["dataVolumeSize"] = dataVolumeSize
 			AdditionalVars["dataVolumeSizeAdditional"] = dataVolumeSizeAdditional
 			AdditionalVars["vmCPU"] = vmCPU
 			AdditionalVars["vmMemory"] = vmMemory
+			AdditionalVars["jobIterationDelay"] = jobIterationDelay
 			AdditionalVars["dataVolumeCounters"] = generateLoopCounterSlice(dataVolumeCount, 1)
+			AdditionalVars["testNamespaceBaseName"] = testNamespaceBaseName
 
 			setMetrics(cmd, metricsProfiles)
 
-			// Loop through namespaces
-			for counter := 0; counter < namespaces; counter++ {
-				currentNamespace := fmt.Sprintf("%s-%d", testNamespaceBaseName, counter)
-				log.Infof("Running namespace %d/%d: %s", counter+1, namespaces, currentNamespace)
-
-				AdditionalVars["counter"] = counter
-				AdditionalVars["testNamespace"] = currentNamespace
-
-				rc = RunWorkload(cmd, wh, cmd.Name()+".yml")
-				if rc != 0 {
-					log.Errorf("virt-dv-scale-density failed in namespace %s", currentNamespace)
-					break
-				}
-
-				// Add delay between namespaces (except after the last one)
-				if counter < namespaces-1 {
-					log.Infof("Waiting %s before processing next namespace", jobIterationDelay)
-					time.Sleep(jobIterationDelay)
-				}
-			}
+			// Run workload once - kube-burner will handle namespace iterations
+			rc = RunWorkload(cmd, wh, cmd.Name()+".yml")
 
 			if cleanup {
 				log.Infof("Cleaning up all the resources from the current run")
@@ -155,9 +140,9 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 	cmd.Flags().StringVar(&sshKeyPairPath, "ssh-key-path", "", "Path to save the generated SSH keys - default to a temporary location")
 	cmd.Flags().BoolVar(&useSnapshot, "use-snapshot", true, "Clone from snapshot (true) or direct PVC clone (false)")
 	cmd.Flags().IntVar(&namespaces, "namespaces", 2, "Number of namespaces to create")
-	cmd.Flags().IntVar(&vmsPerNamespace, "vms-per-namespace", 10, "Number of VMs to create per namespace")
+	cmd.Flags().IntVar(&iterations, "iterations", 5, "Number of iterations (batches) per namespace")
+	cmd.Flags().IntVar(&vmsPerIteration, "vms-per-iteration", 2, "Number of VMs per iteration")
 	cmd.Flags().IntVar(&dataVolumeCount, "data-volume-count", 0, "Number of additional data volumes per VM (default: 0)")
-	cmd.Flags().StringVar(&vmImageURL, "vm-image-url", "https://dl.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2", "HTTP URL of the source image for base DataVolume")
 	cmd.Flags().StringVar(&dataVolumeSize, "datavolume-size", "10Gi", "Size of the root DataVolume")
 	cmd.Flags().StringVar(&dataVolumeSizeAdditional, "data-volume-size", "1Gi", "Size of each additional data volume")
 	cmd.Flags().IntVar(&vmCPU, "vm-cpu", 1, "Number of CPU cores for each VM")

@@ -5,23 +5,19 @@ metadata:
 spec:
   dataVolumeTemplates:
   - metadata:
-      name: "{{ .vmName }}-{{ .Iteration }}-{{ .Replica }}"
+      name: "{{ .vmName }}-{{ .Iteration }}-{{ .Replica }}-root"
     spec:
-    {{ if .rootdiskVolumeSource }}
-      source: {{ .rootdiskVolumeSource | mustToJson }}
-    {{ end }}
-    {{ if .cloneDataSourceName }}
       sourceRef:
         kind: DataSource
-        name: "{{ .cloneDataSourceName }}"
-    {{ end }}
+        name: {{ .dataSourceName }}
+        namespace: {{ .namespaceName }}
       storage:
         accessModes:
         - {{ .accessMode }}
         storageClassName: {{ .storageClassName }}
         resources:
           requests:
-            storage: {{ default "6Gi" .rootVolumeSize }}
+            storage: {{ .dataVolumeSize }}
   {{ range $dataVolumeIndex := .dataVolumeCounters }}
   - metadata:
       name: "{{ $.vmName }}-{{ $.Iteration }}-{{ $.Replica }}-data-{{ $dataVolumeIndex }}"
@@ -34,7 +30,7 @@ spec:
         storageClassName: {{ $.storageClassName }}
         resources:
           requests:
-            storage: "1Gi"
+            storage: {{ $.dataVolumeSizeAdditional }}
   {{ end }}
   runStrategy: RerunOnFailure
   template:
@@ -48,9 +44,11 @@ spec:
               secretName: {{ .sshPublicKeySecret }}
       architecture: amd64
       domain:
+        cpu:
+          cores: {{ .cpuCores }}
         resources:
           requests:
-            memory: {{ default "512Mi" .vmMemory }}
+            memory: {{ .memory }}
         devices:
           disks:
           - disk:
@@ -76,7 +74,7 @@ spec:
         pod: {}
       volumes:
       - dataVolume:
-          name: "{{ .vmName }}-{{ .Iteration }}-{{ .Replica }}"
+          name: "{{ .vmName }}-{{ .Iteration }}-{{ .Replica }}-root"
         name: rootdisk
       {{ range $dataVolumeIndex := .dataVolumeCounters }}
       - dataVolume:
