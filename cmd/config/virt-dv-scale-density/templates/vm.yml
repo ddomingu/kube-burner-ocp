@@ -21,7 +21,7 @@ spec:
         storageClassName: {{ .storageClassName }}
         resources:
           requests:
-            storage: {{ default "6Gi" .rootVolumeSize }}
+            storage: 6Gi
   {{ range $dataVolumeIndex := .dataVolumeCounters }}
   - metadata:
       name: "{{ $.vmName }}-{{ $.Iteration }}-{{ $.Replica }}-data-{{ $dataVolumeIndex }}"
@@ -50,7 +50,7 @@ spec:
       domain:
         resources:
           requests:
-            memory: {{ default "512Mi" .vmMemory }}
+            memory: 512Mi
         devices:
           disks:
           - disk:

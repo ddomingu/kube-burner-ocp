@@ -18,7 +18,7 @@ global:
 metricsEndpoints:
 - indexer:
     type: local
-    metricsDirectory: "./{{ $metricsBaseDirectory }}"
+    metricsDirectory: "./{{ $metricsBaseDirectory }}-results"
 {{ if .ES_SERVER }}
 - metrics: [{{.METRICS}}]
   alerts: [{{.ALERTS}}]
@@ -62,6 +62,7 @@ jobs:
   objects:
 
   - objectTemplate: templates/secret_ssh_public.yml
+    runOnce: true
     replicas: 1
     inputVars:
       name: {{ $sshPublicKeySecretName }}
@@ -86,7 +87,7 @@ jobs:
   burst: 20
   jobIterations: 1
   maxWaitTimeout: 1h
-  objectDelay: 1m
+  objectDelay: 30s
   waitWhenFinished: true
   objects:
   - kubeVirtOp: stop
@@ -105,7 +106,7 @@ jobs:
     {{ $testNamespacesLabelKey }}: {{ $testNamespacesLabelValue }}
   verifyObjects: true
   errorOnVerify: true
-  waitWhenFinished: true
+  waitWhenFinished: false
   podWait: false
   maxWaitTimeout: 15m
   jobPause: 10s

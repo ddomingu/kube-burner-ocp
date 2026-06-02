@@ -16,6 +16,7 @@ package workloads
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/cloud-bulldozer/go-commons/v2/ssh"
@@ -45,10 +46,6 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 	var iterations int
 	var vmsPerIteration int
 	var dataVolumeCount int
-	var dataVolumeSize string
-	var dataVolumeSizeAdditional string
-	var vmCPU int
-	var vmMemory string
 	var volumeAccessMode string
 	var jobIterationDelay time.Duration
 	var testNamespaceBaseName string
@@ -111,10 +108,6 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 			AdditionalVars["namespaces"] = namespaces
 			AdditionalVars["iterations"] = iterations
 			AdditionalVars["vmsPerIteration"] = vmsPerIteration
-			AdditionalVars["dataVolumeSize"] = dataVolumeSize
-			AdditionalVars["dataVolumeSizeAdditional"] = dataVolumeSizeAdditional
-			AdditionalVars["vmCPU"] = vmCPU
-			AdditionalVars["vmMemory"] = vmMemory
 			AdditionalVars["jobIterationDelay"] = jobIterationDelay
 			AdditionalVars["dataVolumeCounters"] = generateLoopCounterSlice(dataVolumeCount, 1)
 			AdditionalVars["testNamespaceBaseName"] = testNamespaceBaseName
@@ -130,9 +123,7 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 			}
 		},
 		PostRun: func(cmd *cobra.Command, args []string) {
-			if rc != 0 {
-				log.Errorf("virt-dv-scale-density failed with return code %d", rc)
-			}
+			os.Exit(rc)
 		},
 	}
 
@@ -143,10 +134,6 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 	cmd.Flags().IntVar(&iterations, "iterations", 5, "Number of iterations (batches) per namespace")
 	cmd.Flags().IntVar(&vmsPerIteration, "vms-per-iteration", 2, "Number of VMs per iteration")
 	cmd.Flags().IntVar(&dataVolumeCount, "data-volume-count", 0, "Number of additional data volumes per VM (default: 0)")
-	cmd.Flags().StringVar(&dataVolumeSize, "datavolume-size", "10Gi", "Size of the root DataVolume")
-	cmd.Flags().StringVar(&dataVolumeSizeAdditional, "data-volume-size", "1Gi", "Size of each additional data volume")
-	cmd.Flags().IntVar(&vmCPU, "vm-cpu", 1, "Number of CPU cores for each VM")
-	cmd.Flags().StringVar(&vmMemory, "vm-memory", "1G", "Memory allocation for each VM")
 	cmd.Flags().StringVar(&volumeAccessMode, "access-mode", "RWX", "Access mode for the created volumes - RO, RWO, RWX")
 	cmd.Flags().DurationVar(&jobIterationDelay, "job-iteration-delay", 1*time.Minute, "Delay between namespace iterations")
 	cmd.Flags().StringVarP(&testNamespaceBaseName, "namespace", "n", virtDVScaleDensityTestName, "Base namespace name for the test")
