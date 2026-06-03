@@ -169,12 +169,12 @@ teardown_file() {
   run_cmd kube-burner-ocp virt-capacity-benchmark --cleanup-only
   local jobs=("create-vms" "restart-vms")
   for job in "${jobs[@]}"; do
-    check_metric_recorded ./virt-capacity-benchmark/iteration-1 ${job} vmiLatency vmReadyLatency
-    check_quantile_recorded ./virt-capacity-benchmark/iteration-1 ${job} vmiLatency VMReady
+    check_metric_recorded ./virt-capacity-benchmark/iteration-1 ${job}-1 vmiLatency vmReadyLatency
+    check_quantile_recorded ./virt-capacity-benchmark/iteration-1 ${job}-1 vmiLatency VMReady
   done
   # check pvcLatency and dvLatency
-  check_metric_recorded ./virt-capacity-benchmark/iteration-1 create-vms pvcLatency bindingLatency
-  check_metric_recorded ./virt-capacity-benchmark/iteration-1 create-vms dvLatency dvReadyLatency
+  check_metric_recorded ./virt-capacity-benchmark/iteration-1 create-vms-1 pvcLatency bindingLatency
+  check_metric_recorded ./virt-capacity-benchmark/iteration-1 create-vms-1 dvLatency dvReadyLatency
   check_destroyed_ns virt-capacity-benchmark
 }
 
@@ -185,14 +185,14 @@ teardown_file() {
   fi
   run_cmd ${KUBE_BURNER_OCP} virt-parallel ${STORAGE_PARAMETER} --max-iterations 2 --data-volume-count 2 --initial-vms 2 --increment 2 --skip-migration-job --skip-resize-job
   run_cmd kube-burner-ocp virt-parallel --cleanup-only
-  local jobs=("create-vms" "restart-vms")
+  local jobs=("virt-parallel-create-vms-1" "virt-parallel-restart-vms-1")
   for job in "${jobs[@]}"; do
     check_metric_recorded ./virt-parallel/iteration-1 ${job} vmiLatency vmReadyLatency
     check_quantile_recorded ./virt-parallel/iteration-1 ${job} vmiLatency VMReady
   done
   # check pvcLatency and dvLatency
-  check_metric_recorded ./virt-parallel/iteration-1 create-vms pvcLatency bindingLatency
-  check_metric_recorded ./virt-parallel/iteration-1 create-vms dvLatency dvReadyLatency
+  check_metric_recorded ./virt-parallel/iteration-1 virt-parallel-create-vms-1 pvcLatency bindingLatency
+  check_metric_recorded ./virt-parallel/iteration-1 virt-parallel-create-vms-1 dvLatency dvReadyLatency
   check_destroyed_ns virt-parallel
 }
 
