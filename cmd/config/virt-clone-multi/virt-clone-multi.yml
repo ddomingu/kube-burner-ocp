@@ -1,11 +1,11 @@
 {{- $kubeBurnerFQDN := "kube-burner.io" -}}
-{{- $testName := "virt-dv-scale-density" -}}
+{{- $testName := "virt-clone-multi" -}}
 {{- $namespaceBaseName := .testNamespaceBaseName -}}
 {{- $baseNamespace := (list $namespaceBaseName "base") | join "-" -}}
 {{- $testNamespacesLabelKey := (list $kubeBurnerFQDN "/test-name") | join "" -}}
 {{- $testNamespacesLabelValue := $testName -}}
 {{- $createBaseVMJobName := "create-base-vm" -}}
-{{- $sshPublicKeySecretName := "dv-scale-density-ssh" -}}
+{{- $sshPublicKeySecretName := "virt-clone-multi-ssh" -}}
 {{- $cloneVMName := "clone-vm" -}}
 {{- $metricsBaseDirectory := $testName -}}
 

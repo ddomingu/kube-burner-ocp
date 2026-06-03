@@ -45,8 +45,8 @@ Available Commands:
   version                    Print the version number of kube-burner
   virt-capacity-benchmark    Runs capacity-benchmark workload
   virt-clone                 Runs virt-clone workload
+  virt-clone-multi           Runs virt-clone-multi workload
   virt-density               Runs virt-density workload
-  virt-dv-scale-density      Runs virt-dv-scale-density workload
   virt-ephemeral-restart     Runs virt-ephemeral-restart workload
   virt-migration             Runs virt-migration workload
   virt-parallel              Runs virt-parallel workload
@@ -583,7 +583,7 @@ The different variants are:
 - [virt-capacity-benchmark](#virt-capacity-benchmark)
 - [virt-parallel](#virt-parallel)
 - [virt-clone](#virt-clone)
-- [virt-dv-scale-density](#virt-dv-scale-density)
+- [virt-clone-multi](#virt-clone-multi)
 - [virt-ephemeral-restart](#virt-ephemeral-restart)
 - [virt-migration](#virt-migration)
 
@@ -597,7 +597,7 @@ Therefore, `virtctl` must be installed and available in the `PATH`.
 - [virt-capacity-benchmark](#virt-capacity-benchmark)
 - [virt-parallel](#virt-parallel)
 - [virt-clone](#virt-clone)
-- [virt-dv-scale-density](#virt-dv-scale-density)
+- [virt-clone-multi](#virt-clone-multi)
 - [virt-ephemeral-restart](#virt-ephemeral-restart)
 - [virt-migration](#virt-migration)
 
@@ -799,22 +799,29 @@ For example, to change the test to wait for a minute between iterations instead 
 By default, volumes are created with `ReadWriteMany` access mode as this is the recommended configuration for `VirtualMachines`.
 If not supported, the access mode may be changes by setting `--access-mode`. The supported values are `RO`, `RWO` and `RWX`.
 
-### Virt DV Scale Density
+### Virt Clone Multi
 
-Test high-scale VM density by deploying VMs across multiple namespaces using DataVolume cloning from HTTP sources. This workload validates storage backend capacity and CDI (Containerized Data Importer) performance at scale.
+Test high-scale VM cloning by deploying VMs across multiple namespaces with independent base images. This is a scalable version of the `virt-clone` workload, where each namespace has its own master image for cloning. The workload validates storage backend capacity, CDI (Containerized Data Importer) performance, and VM cloning efficiency at scale.
+
+#### Key Differentiators from virt-clone
+
+- **Multi-namespace architecture**: Each test namespace maintains its own master image (DataVolume/VolumeSnapshot/DataSource)
+- **Namespace isolation**: Clones within a namespace are created from that namespace's master image, not a centralized source
 
 #### Test Sequence
 
-The test creates multiple namespaces, each with its own base image and cloned VMs:
+The test follows this workflow:
 
-For each namespace:
-
-1. Create a base `DataVolume` by importing from an HTTP source
-2. Create a `VolumeSnapshot` of the base DataVolume (if `--use-snapshot=true`)
-3. Create a `DataSource` pointing to either the snapshot or the DataVolume
-4. Create N `VirtualMachines` cloning from the DataSource
-5. Verify network connectivity via SSH
-6. Wait for configured delay before next namespace
+1. **Create base VMs**: Create N base VMs in a base namespace from a container disk (Fedora 41)
+2. **Stop base VMs**: Stop all base VMs to ensure data consistency
+3. **Create test DataSources** (per namespace, in parallel):
+   - Create a `DataVolume` from the corresponding base VM's PVC
+   - Optionally create a `VolumeSnapshot` of the DataVolume (if `--use-snapshot=true`)
+   - Create a `DataSource` pointing to either the snapshot or the DataVolume
+4. **Clone VMs** (per namespace, in batches):
+   - Create VMs in iterations, cloning from the namespace's DataSource
+   - Each VM optionally includes additional blank data volumes (controlled by `--data-volume-count`)
+   - VMs start automatically with `runStrategy: RerunOnFailure`
 
 #### Tested StorageClass
 
@@ -833,29 +840,20 @@ If `--use-snapshot=false`, the test will clone directly from the PVC without cre
 
 Resources are distributed across multiple namespaces for scale testing.
 
-By default, namespaces follow the pattern `virt-dv-scale-density-0`, `virt-dv-scale-density-1`, etc. Set the base name by passing `--namespace` (or `-n`)
+By default, namespaces follow the pattern `virt-clone-multi-0`, `virt-clone-multi-1`, etc. Set the base name by passing `--namespace` (or `-n`)
 
 #### Test Size Parameters
 
 Users may control the workload scale by passing the following arguments:
 
-- `--namespaces` - Number of namespaces to create (default: 2)
-- `--vms-per-namespace` - Number of VMs per namespace (default: 10)
-- `--data-volume-count` - Number of additional data volumes per VM (default: 0)
-- `--datavolume-size` - Size of the root DataVolume (default: 10Gi)
-- `--data-volume-size` - Size of each additional data volume (default: 1Gi)
-- `--vm-cpu` - Number of CPU cores per VM (default: 1)
-- `--vm-memory` - Memory allocation per VM (default: 1G)
+- `--namespaces` - Number of test namespaces to create (default: 2)
+- `--iterations` - Number of batches per namespace (default: 5)
+- `--vms-per-iteration` - Number of VMs created per batch (default: 2)
+- `--data-volume-count` - Number of additional blank data volumes per VM (default: 0)
 
-#### Batching Control
+**Total VMs** = `namespaces × iterations × vms-per-iteration`
 
-- `--job-iteration-delay` - Delay between namespace iterations (default: 1m)
-
-The test waits for all resources in a namespace to be ready before proceeding to the next namespace.
-
-#### VM Image Source
-
-- `--vm-image-url` - HTTP URL of the source image (default: Fedora 43 cloud image)
+**Total PVCs** = `Total VMs × (1 + data-volume-count)` (1 root PVC + N data volumes per VM)
 
 #### Volume Access Mode
 

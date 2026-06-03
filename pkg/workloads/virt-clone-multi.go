@@ -27,17 +27,17 @@ import (
 )
 
 const (
-	VirtDVScaleDensitySSHKeyFileName = "ssh"
-	VirtDVScaleDensityTmpDirPattern  = "kube-burner-dv-scale-density-*"
-	virtDVScaleDensityTestName       = "virt-dv-scale-density"
+	VirtCloneMultiSSHKeyFileName = "ssh"
+	VirtCloneMultiTmpDirPattern  = "kube-burner-virt-clone-multi-*"
+	virtCloneMultiTestName       = "virt-clone-multi"
 )
 
 var (
-	virtDVScaleDensityNamespaceLabelSelector = fmt.Sprintf("%s=%s", kubeBurnerTestNameLabelKey, virtDVScaleDensityTestName)
+	virtCloneMultiNamespaceLabelSelector = fmt.Sprintf("%s=%s", kubeBurnerTestNameLabelKey, virtCloneMultiTestName)
 )
 
-// NewVirtDVScaleDensity holds the virt-dv-scale-density workload
-func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
+// NewVirtCloneMulti holds the virt-clone-multi workload
+func NewVirtCloneMulti(wh *workloads.WorkloadHelper) *cobra.Command {
 	var storageClassName string
 	var volumeSnapshotClassName string
 	var sshKeyPairPath string
@@ -55,8 +55,8 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 	var rc int
 
 	cmd := &cobra.Command{
-		Use:          virtDVScaleDensityTestName,
-		Short:        "Runs virt-dv-scale-density workload",
+		Use:          virtCloneMultiTestName,
+		Short:        "Runs virt-clone-multi workload",
 		SilenceUsage: true,
 		PreRun: func(cmd *cobra.Command, args []string) {
 			if cleanupOnly {
@@ -76,11 +76,11 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			if cleanupOnly {
 				log.Infof("Cleaning up all the resources from the previous run")
-				cleanupTestNamespaces(cmd.Context(), virtDVScaleDensityNamespaceLabelSelector)
+				cleanupTestNamespaces(cmd.Context(), virtCloneMultiNamespaceLabelSelector)
 				return
 			}
 
-			privateKeyPath, publicKeyPath, err := ssh.GenerateSSHKeyPair(sshKeyPairPath, VirtDVScaleDensityTmpDirPattern, VirtDVScaleDensitySSHKeyFileName)
+			privateKeyPath, publicKeyPath, err := ssh.GenerateSSHKeyPair(sshKeyPairPath, VirtCloneMultiTmpDirPattern, VirtCloneMultiSSHKeyFileName)
 			if err != nil {
 				log.Fatalf("Failed to generate SSH keys for the test - %v", err)
 			}
@@ -94,7 +94,7 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 			totalVMs := namespaces * vmsPerNamespace
 			totalPVCs := totalVMs * (1 + dataVolumeCount) // root + data volumes
 
-			log.Infof("Running virt-dv-scale-density with %d namespaces, %d iterations, %d VMs per iteration", namespaces, iterations, vmsPerIteration)
+			log.Infof("Running virt-clone-multi with %d namespaces, %d iterations, %d VMs per iteration", namespaces, iterations, vmsPerIteration)
 			log.Infof("Total VMs: %d (%d per namespace), Total PVCs: %d (including %d data volumes per VM)", totalVMs, vmsPerNamespace, totalPVCs, dataVolumeCount)
 			log.Infof("Using Storage Class [%s], VolumeSnapshotClass [%s]", storageClassName, volumeSnapshotClassName)
 			log.Infof("Use Snapshot: %t", useSnapshot)
@@ -119,7 +119,7 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 
 			if cleanup {
 				log.Infof("Cleaning up all the resources from the current run")
-				cleanupTestNamespaces(cmd.Context(), virtDVScaleDensityNamespaceLabelSelector)
+				cleanupTestNamespaces(cmd.Context(), virtCloneMultiNamespaceLabelSelector)
 			}
 		},
 		PostRun: func(cmd *cobra.Command, args []string) {
@@ -136,7 +136,7 @@ func NewVirtDVScaleDensity(wh *workloads.WorkloadHelper) *cobra.Command {
 	cmd.Flags().IntVar(&dataVolumeCount, "data-volume-count", 0, "Number of additional data volumes per VM (default: 0)")
 	cmd.Flags().StringVar(&volumeAccessMode, "access-mode", "RWX", "Access mode for the created volumes - RO, RWO, RWX")
 	cmd.Flags().DurationVar(&jobIterationDelay, "job-iteration-delay", 1*time.Minute, "Delay between namespace iterations")
-	cmd.Flags().StringVarP(&testNamespaceBaseName, "namespace", "n", virtDVScaleDensityTestName, "Base namespace name for the test")
+	cmd.Flags().StringVarP(&testNamespaceBaseName, "namespace", "n", virtCloneMultiTestName, "Base namespace name for the test")
 	cmd.Flags().StringSliceVar(&metricsProfiles, "metrics-profile", []string{"metrics-aggregated.yml"}, "Comma separated list of metrics profiles to use")
 	cmd.Flags().BoolVar(&cleanupOnly, "cleanup-only", false, "Only cleanup the resources created by the previous run. Do not run the test.")
 	cmd.Flags().BoolVar(&cleanup, "cleanup", false, "Cleanup the resources created by the test.")
