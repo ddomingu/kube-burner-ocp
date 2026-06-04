@@ -11,3 +11,4 @@ site/
 *.log
 virt-clone-results/
 virt-clone-multi/
+virt-clone-multi-results/

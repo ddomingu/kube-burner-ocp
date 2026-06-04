@@ -33,6 +33,10 @@ The `Virt-parallel.json` dashboard is designed to visualize the results of the *
 
 The `Virt-clone.json` dashboard is designed to visualize the results of the **virt-clone** workload, providing an overview of performance and metrics collected during its execution.
 
+### Virt-clone-multi.json
+
+The `Virt-clone-multi.json` dashboard is designed to visualize the results of the **virt-clone-multi** workload, providing an overview of performance and metrics collected during its execution.
+
 ### Virt-density.json
 
 The `Virt-density.json` dashboard is designed to visualize the results of the **virt-density** workload, providing an overview of performance and metrics collected during its execution.
