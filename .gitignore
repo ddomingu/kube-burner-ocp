@@ -10,4 +10,4 @@ dist
 site/
 *.log
 virt-clone-results/
-virt-dv-scale-density/
+virt-clone-multi/
