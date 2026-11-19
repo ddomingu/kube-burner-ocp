@@ -95,6 +95,7 @@ func NewVirtParallel(wh *workloads.WorkloadHelper) *cobra.Command {
 	var useSnapshot bool
 	var metricsProfiles []string
 	var cleanup bool
+	var disablePopulator bool
 	var rc int
 	cmd := &cobra.Command{
 		Use:          virtParallelTestName,
@@ -130,12 +131,18 @@ func NewVirtParallel(wh *workloads.WorkloadHelper) *cobra.Command {
 				}
 			}
 
-			usePopulator, err := hasVolumeImportSourcePopulator(cmd.Context(), getK8SConnector().DynamicClient())
-			if err != nil {
-				log.Fatalf("Failed to detect CDI VolumeImportSource populator: %v", err)
+			usePopulator := false
+			if !disablePopulator {
+				var err error
+				usePopulator, err = hasVolumeImportSourcePopulator(cmd.Context(), getK8SConnector().DynamicClient())
+				if err != nil {
+					log.Fatalf("Failed to detect CDI VolumeImportSource populator: %v", err)
+				}
+				log.Infof("CDI VolumeImportSource populator registered: %t", usePopulator)
+			} else {
+				log.Infof("CDI VolumeImportSource populator disabled by --disable-populator flag")
 			}
 			AdditionalVars["usePopulator"] = usePopulator
-			log.Infof("CDI VolumeImportSource populator registered: %t", usePopulator)
 			if !usePopulator && skipMigrationJob {
 				log.Fatalf("virt-parallel: legacy CDI imports require ReadWriteMany; --skip-migration-job selects ReadWriteOnce, so use a ReadWriteMany-capable storage class and omit --skip-migration-job")
 			}
@@ -274,6 +281,7 @@ func NewVirtParallel(wh *workloads.WorkloadHelper) *cobra.Command {
 	cmd.Flags().StringVar(&selector, "selector", WorkerNodeSelector, "Node selector")
 	cmd.Flags().BoolVar(&useBaseImage, "use-base-image", false, "Create a base image and clone VMs from it instead of using container disk per VM")
 	cmd.Flags().BoolVar(&useSnapshot, "use-snapshot", true, "Clone from snapshot - only applies when --use-base-image=true")
+	cmd.Flags().BoolVar(&disablePopulator, "disable-populator", false, "Disable CDI volume populator for cloning (use smart clone instead)")
 	cmd.Flags().StringSliceVar(&metricsProfiles, "metrics-profile", []string{"metrics-aggregated.yml"}, "Comma separated list of metrics profiles to use")
 	cmd.Flags().BoolVar(&cleanup, "cleanup", false, "Cleanup resources created by previous runs")
 	return cmd
